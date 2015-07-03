@@ -23,3 +23,4 @@ id oracle 2>&1 > /dev/null  && usermod -a -g oinstall -G dba,asmdba,backupdba,op
 echo oracle | passwd --stdin oracle
 echo grid   | passwd --stdin grid
 
+ 

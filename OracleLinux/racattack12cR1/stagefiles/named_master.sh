@@ -1,152 +1,260 @@
+# I need to change and include the following parameters:
+# 1. cl_prefix
+# 2. cl_domain (instead of racattack)
+# 3. public_lan
+# 4. private_lan
+# 5. hub count
+# 6. hub starting count (51)
+# 7. vip starting count (61)
+# 8. leaf count
+# 9. leaf starting count (81)
+# 10. app count
+# 12. scan count
+# 11. app starting count (101)
+# 13. scan starting count (251)
 
-if [ -f /var/named/racattack ];then
-  echo "named already configured in $HOSTNAME"
-  exit 0
+if [ $# -ne 13 ] ; then
+	cat - <<EOF
+	Usage: $0    <with 13 parameters:>
+	# 1. cl_prefix
+	# 2. cl_domain (instead of racattack)
+	# 3. public_lan
+	# 4. private_lan
+	# 5. hub count
+	# 6. hub starting count (51)
+	# 7. vip starting count (61)
+	# 8. leaf count
+	# 9. leaf starting count (81)
+	# 10. app count
+	# 11. app starting count (101)
+	# 12. scan count
+	# 13. scan starting count (251)
+EOF
+	exit 1
 fi
 
+cl_prefix=$1
+cl_domain=$2
+public_lan=$3
+private_lan=$4
+hub_count=$5
+hub_starting_count=$6
+vip_starting_count=$7
+leaf_count=$8
+leaf_starting_count=$9
+app_count=$10
+app_starting_count=$11
+scan_count=$12
+scan_starting_count=$13
+
+# if [ -f /var/named/${cl_domain} ];then
+#  echo "named already configured in $HOSTNAME"
+#  exit 0
+#fi
+
 chkconfig named on
-touch /var/named/racattack
-chmod 664 /var/named/racattack
-chgrp named /var/named/racattack
+touch /var/named/${cl_domain}
+chmod 664 /var/named/${cl_domain}
+chgrp named /var/named/${cl_domain}
 chmod g+w /var/named
-chmod g+w /var/named/racattack
+chmod g+w /var/named/${cl_domain}
 
 cp /etc/named.conf /etc/named.conf.ori
 
-grep '192.168.78.51' /etc/named.conf && echo "already configured " || sed -i -e 's/listen-on .*/listen-on port 53 { 192.168.78.51; 127.0.0.1; };/' \
--e 's/allow-query .*/allow-query     { 192.168.78.0\/24; localhost; };\n        allow-transfer  { 192.168.78.0\/24; };/' \
--e '$azone "racattack" {\n  type master;\n  file "racattack";\n};\n\nzone "in-addr.arpa" {\n  type master;\n  file "in-addr.arpa";\n};' \
-/etc/named.conf
+base_public=`echo $public_lan | awk -F. '{printf ("%d.%d.%d.",$1,$2,$3) }'`
+base_private=`echo $private_lan | awk -F. '{printf ("%d.%d.%d.",$1,$2,$3) }'`
+master_ip="${base_public}${hub_starting_count}"
+
+#grep $master_ip /etc/named.conf && echo "already configured " || sed -i -e 's/listen-on .*/listen-on port 53 { 192.168.78.51; 127.0.0.1; };/' \
+#-e 's/allow-query .*/allow-query     { 192.168.78.0\/24; localhost; };\n        allow-transfer  { 192.168.78.0\/24; };/' \
+#-e '$azone "racattack" {\n  type master;\n  file "racattack";\n};\n\nzone "in-addr.arpa" {\n  type master;\n  file "in-addr.arpa";\n};' \
+#/etc/named.conf
 
 
+### CREATING THE NEW named.conf
+cat <<EOF > /etc/named.comf
+options {
+       listen-on port 53 { $master_ip; };
+       listen-on-v6 port 53 { ::1; };
+       directory       "/var/named";
+       dump-file       "/var/named/data/cache_dump.db";
+       statistics-file "/var/named/data/named_stats.txt";
+       memstatistics-file "/var/named/data/named_mem_stats.txt";
+       allow-query     { $public_lan/24; localhost; };
+       allow-transfer  { $public_lan/24; };
+       recursion yes;
+
+       dnssec-enable yes;
+       dnssec-validation yes;
+       dnssec-lookaside auto;
+
+       /* Path to ISC DLV key */
+       bindkeys-file "/etc/named.iscdlv.key";
+
+       managed-keys-directory "/var/named/dynamic";
+};
+
+logging {
+       channel default_debug {
+               file "data/named.run";
+               severity dynamic;
+       };
+};
+
+zone "." IN {
+       type hint;
+       file "named.ca";
+};
+
+include "/etc/named.rfc1912.zones";
+include "/etc/named.root.key";
+
+zone "$cl_domain" {
+ type master;
+ file "$cl_domain";
+};
+
+zone "in-addr.arpa" {
+ type master;
+ file "in-addr.arpa";
+};
+EOF
+
+
+### CREATING THE NEW dns domain file
 echo '$ORIGIN .
-$TTL 10800      ; 3 hours
-racattack               IN SOA  collabn1.racattack. hostmaster.racattack. (
+$TTL 10800      ; 3 hours' > /var/named/$cl_domain
+
+echo "$cl_domain               IN SOA  ${cl_prefix}h1.$cl_domain. hostmaster.$cl_domain. (
                                 101        ; serial
                                 86400      ; refresh (1 day)
                                 3600       ; retry (1 hour)
                                 604800     ; expire (1 week)
                                 10800      ; minimum (3 hours)
                                 )
-                        NS      collabn1.racattack.
-                        NS      collabn2.racattack.
-$ORIGIN racattack.
-collabn-cluster-scan    A       192.168.78.251
-                        A       192.168.78.252
-                        A       192.168.78.253
-collabn1                A       192.168.78.51
-collabn1-priv           A       172.16.100.51
-collabn1-vip            A       192.168.78.61
-collabn2                A       192.168.78.52
-collabn2-priv           A       172.16.100.52
-collabn2-vip            A       192.168.78.62
-collabn3                A       192.168.78.53
-collabn3-priv           A       172.16.100.53
-collabn3-vip            A       192.168.78.63
-collabn4                A       192.168.78.54
-collabn4-priv           A       172.16.100.54
-collabn4-vip            A       192.168.78.64
-collabl1                A       192.168.78.71
-collabl1-priv           A       172.16.100.71
-collabl1-vip            A       192.168.78.81
-collabl2                A       192.168.78.72
-collabl2-priv           A       172.16.100.72
-collabl2-vip            A       192.168.78.82
-collabl3                A       192.168.78.73
-collabl3-priv           A       172.16.100.73
-collabl3-vip            A       192.168.78.83
-collabl4                A       192.168.78.74
-collabl4-priv           A       172.16.100.74
-collabl4-vip            A       192.168.78.84
-collabl5                A       192.168.78.75
-collabl5-priv           A       172.16.100.75
-collabl5-vip            A       192.168.78.85
-collabl6                A       192.168.78.76
-collabl6-priv           A       172.16.100.76
-collabl6-vip            A       192.168.78.86
-collabl7                A       192.168.78.77
-collabl7-priv           A       172.16.100.77
-collabl7-vip            A       192.168.78.87
-collabl8                A       192.168.78.78
-collabl8-priv           A       172.16.100.78
-collabl8-vip            A       192.168.78.88
-collabl9                A       192.168.78.79
-collabl9-priv           A       172.16.100.79
-collabl9-vip            A       192.168.78.89
-collaba1                A       192.168.78.91
-collaba2                A       192.168.78.92
-collaba3                A       192.168.78.93
-collaba4                A       192.168.78.94
-localhost               A       127.0.0.1
-$ORIGIN collabn.racattack.
-@                       NS      collabn-cluster-gns.collabn.racattack.
-collabn-cluster-gns     A       192.168.78.244
-' \
-> /var/named/racattack
+                        NS      ${cl_prefix}h1.$cl_domain.
+                        NS      ${cl_prefix}h2.$cl_domain." >> /var/named/$cl_domain
+echo '$ORIGIN '$cl_domain'.' >>  /var/named/$cl_domain
+
+## adding scan IPs
+echo "${cl_prefix}-scan    A       ${base_public}.${scan_starting_count}" >> /var/named/$cl_domain
+i=1
+while [ $i -lt $scan_count ] ; do
+	echo "    A       ${base_public}.$(($scan_starting_count+$i))}" >> /var/named/$cl_domain
+	i=$(($i+1))
+done
+
+## adding public HUB IPs
+i=0
+while [ $i -lt $hub_count ] ; do
+	echo "${cl_prefix}h$(($i+1))     A       ${base_public}.$(($hub_starting_count+$i))}" >> /var/named/$cl_domain
+	i=$(($i+1))
+done
+## adding  HUB PRIV IPs
+i=0
+while [ $i -lt $hub_count ] ; do
+	echo "${cl_prefix}h$(($i+1))-priv     A       ${base_private}.$(($hub_starting_count+$i))}" >> /var/named/$cl_domain
+	i=$(($i+1))
+done
+## adding public HUB VIP IPs
+i=0
+while [ $i -lt $hub_count ] ; do
+	echo "${cl_prefix}h$(($i+1))-vip     A       ${base_public}.$(($vip_starting_count+$i))}" >> /var/named/$cl_domain
+	i=$(($i+1))
+done
+
+## adding public LEAF IPs
+i=0
+while [ $i -lt $leaf_count ] ; do
+	echo "${cl_prefix}l$(($i+1))     A       ${base_public}.$(($leaf_starting_count+$i))}" >> /var/named/$cl_domain
+	i=$(($i+1))
+done
+## adding  LEAF PRIV IPs
+i=0
+while [ $i -lt $leaf_count ] ; do
+	echo "${cl_prefix}l$(($i+1))-priv     A       ${base_private}.$(($leaf_starting_count+$i))}" >> /var/named/$cl_domain
+	i=$(($i+1))
+done
+
+## adding public APP IPs
+i=0
+while [ $i -lt $app_count ] ; do
+	echo "${cl_prefix}a$(($i+1))     A       ${base_public}.$(($app_starting_count+$i))}" >> /var/named/$cl_domain
+	i=$(($i+1))
+done
+
+echo "localhost               A       127.0.0.1" >> /var/named/$cl_domain
+echo '$ORIGIN '${cl_prefix}'.'${cl_domain}'.' >> /var/named/$cl_domain
+
+echo "@                       NS      ${cl_prefix}-gns.${cl_prefix}.${cl_domain}." >> /var/named/$cl_domain
+echo "${cl_prefix}-gns     A       ${base_public}.241" >> /var/named/$cl_domain
 
 
+
+##### CREATING THE NEW REVERSE-LOOKUP FILE
 echo '$ORIGIN .
-$TTL 10800      ; 3 hours
-in-addr.arpa            IN SOA  collabn1.racattack. hostmaster.racattack. (
+$TTL 10800      ; 3 hours' >> /var/named/in-addr.arpa
+
+echo "in-addr.arpa            IN SOA  ${cl_prefix}h1.${cl_domain}. hostmaster.${cl_domain}. (
                                 101        ; serial
                                 86400      ; refresh (1 day)
                                 3600       ; retry (1 hour)
                                 604800     ; expire (1 week)
                                 10800      ; minimum (3 hours)
                                 )
-                        NS      collabn1.racattack.
-                        NS      collabn2.racattack.
-$ORIGIN 100.16.172.in-addr.arpa.
-51                      PTR     collabn1-priv.racattack.
-52                      PTR     collabn2-priv.racattack.
-53                      PTR     collabn3-priv.racattack.
-54                      PTR     collabn4-priv.racattack.
-71                      PTR     collabl1-priv.racattack.
-72                      PTR     collabl2-priv.racattack.
-73                      PTR     collabl3-priv.racattack.
-74                      PTR     collabl4-priv.racattack.
-75                      PTR     collabl5-priv.racattack.
-76                      PTR     collabl6-priv.racattack.
-77                      PTR     collabl7-priv.racattack.
-78                      PTR     collabl8-priv.racattack.
-79                      PTR     collabl9-priv.racattack.
-$ORIGIN 78.168.192.in-addr.arpa.
-251                     PTR     collabn-cluster-scan.racattack.
-252                     PTR     collabn-cluster-scan.racattack.
-253                     PTR     collabn-cluster-scan.racattack.
-244			PTR	collabn-cluster-gns.collabn.racattack.
-51                      PTR     collabn1.racattack.
-52                      PTR     collabn2.racattack.
-53                      PTR     collabn3.racattack.
-54                      PTR     collabn4.racattack.
-61                      PTR     collabn1-vip.racattack.
-62                      PTR     collabn2-vip.racattack.
-63                      PTR     collabn3-vip.racattack.
-64                      PTR     collabn4-vip.racattack.
-71                      PTR     collabl1.racattack.
-81                      PTR     collabl1-vip.racattack.
-72                      PTR     collabl2.racattack.
-82                      PTR     collabl2-vip.racattack.
-73                      PTR     collabl3.racattack.
-83                      PTR     collabl3-vip.racattack.
-74                      PTR     collabl4.racattack.
-84                      PTR     collabl4-vip.racattack.
-75                      PTR     collabl5.racattack.
-85                      PTR     collabl5-vip.racattack.
-76                      PTR     collabl6.racattack.
-86                      PTR     collabl6-vip.racattack.
-77                      PTR     collabl7.racattack.
-87                      PTR     collabl7-vip.racattack.
-78                      PTR     collabl8.racattack.
-88                      PTR     collabl8-vip.racattack.
-79                      PTR     collabl9.racattack.
-89                      PTR     collabl9-vip.racattack.
-91                      PTR     collaba1.racattack.
-92                      PTR     collaba2.racattack.
-93                      PTR     collaba3.racattack.
-94                      PTR     collaba4.racattack.
-' \
-> /var/named/in-addr.arpa
+                        NS      ${cl_prefix}h1.${cl_domain}.
+                        NS      ${cl_prefix}h2.${cl_domain}." >> /var/named/in-addr.arpa
+
+base_public_reverse=`echo $public_lan | awk -F. '{printf ("%d.%d.%d.",$3,$2,$1) }'`
+base_private_reverse=`echo $private_lan | awk -F. '{printf ("%d.%d.%d.",$3,$2,$1) }'`
+						
+echo '$ORIGIN '${base_private_reverse}"in-addr.arpa." >> /var/named/in-addr.arpa
+## adding  HUB PRIV IPs
+i=0
+while [ $i -lt $hub_count ] ; do
+	echo "$(($hub_starting_count+$i))}			PTR		${cl_prefix}h$(($i+1))-priv.${cl_prefix}." >> /var/named/in-addr.arpa
+	i=$(($i+1))
+done
+## adding LEAF PRIV IPs
+i=0
+while [ $i -lt $leaf_count ] ; do
+	echo "$(($leaf_starting_count+$i))}			PTR		${cl_prefix}l$(($i+1))-priv.${cl_prefix}." >> /var/named/in-addr.arpa
+	i=$(($i+1))
+done
+echo '$ORIGIN '${base_public_reverse}"in-addr.arpa." >> /var/named/in-addr.arpa
+
+## adding  SCAN IPs
+i=0
+while [ $i -lt $scan_count ] ; do
+	echo "$(($scan_starting_count+$i))}			PTR		${cl_prefix}-scan.${cl_prefix}." >>/var/named/in-addr.arpa
+	i=$(($i+1))
+done
+## adding  HUB PUBLIC IPs
+i=0
+while [ $i -lt $hub_count ] ; do
+	echo "$(($hub_starting_count+$i))}			PTR		${cl_prefix}h$(($i+1)).${cl_prefix}." >> /var/named/in-addr.arpa
+	i=$(($i+1))
+done
+## adding  HUB PUBLIC VIPs
+i=0
+while [ $i -lt $hub_count ] ; do
+	echo "$(($vip_starting_count+$i))}			PTR		${cl_prefix}h$(($i+1))-vip.${cl_prefix}." >> /var/named/in-addr.arpa
+	i=$(($i+1))
+done
+## adding  LEAF PUBLIC IPs
+i=0
+while [ $i -lt $leaf_count ] ; do
+	echo "$(($leaf_starting_count+$i))}			PTR		${cl_prefix}l$(($i+1)).${cl_prefix}." >> /var/named/in-addr.arpa
+	i=$(($i+1))
+done
+## adding  APP PUBLIC IPs
+i=0
+while [ $i -lt $app_count ] ; do
+	echo "$(($app_starting_count+$i))}			PTR		${cl_prefix}a$(($i+1)).${cl_prefix}." >> /var/named/in-addr.arpa
+	i=$(($i+1))
+done
+
+echo "244			PTR	${cl_prefix}-gns.${cl_prefix}.${cl_domain}." >> /var/named/in-addr.arpa
 
 
 

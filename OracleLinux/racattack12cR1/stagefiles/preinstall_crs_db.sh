@@ -13,11 +13,14 @@ else
   cp /etc/security/limits.conf /etc/security/limits.conf.preinstall
     if [ -c /dev/lxc/console ]; then
       echo 'grid  soft  nproc  2047'>> /etc/security/limits.conf
+	  echo 'oracle  soft  nproc  2047'>> /etc/security/limits.conf
       mv /etc/security/limits.d/oracle-rdbms-server-12cR1-preinstall.conf /etc/security/limits.d/oracle-rdbms-server-12cR1-preinstall.conf.ori
       grep -v nofile /etc/security/limits.d/oracle-rdbms-server-12cR1-preinstall.conf.ori > /etc/security/limits.d/oracle-rdbms-server-12cR1-preinstall.conf
     else
       echo 'grid  hard  nofile  65536'>> /etc/security/limits.conf
       echo 'grid  soft  nproc  2047'>> /etc/security/limits.conf
+	  echo 'oracle  hard  nofile  65536'>> /etc/security/limits.conf
+      echo 'oracle  soft  nproc  2047'>> /etc/security/limits.conf
     fi
 fi
 
@@ -79,17 +82,15 @@ fi
 
 sysctl -p
 
-mkdir -p /u01/app/grid /u01/app/oraInventory /u01/app/12.1.0.1/grid /u01/app/oracle/product/12.1.0.1/dbhome_1
+mkdir -p /u01/app/grid /u01/app/oraInventory /u01/app/grid/12.1.0.2 /u01/app/oracle/product/12.1.0.2/dbhome_1
 chown       oracle:oinstall     /u01
 chown -R    oracle:oinstall     /u01/app
 chown -R    oracle:oinstall     /u01/stage
-chown -R    grid:oinstall       /u01/app/12.1.0.1
 chown -R    grid:oinstall       /u01/app/grid
 chown -R    grid:oinstall       /u01/app/oraInventory
 chown -R    oracle:oinstall     /home/oracle
 chown -R    grid:oinstall       /home/grid
 chmod -R    ug+rw               /u01
-[ -d /u01/stage/grid ] && chown -R grid:oinstall /u01/stage/grid
 
 # final command must return success or vagrant thinks the script failed
 echo "successfully completed preinstall steps"

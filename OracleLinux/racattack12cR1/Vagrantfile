@@ -4,49 +4,92 @@
 # Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
 VAGRANTFILE_API_VERSION = "2"
 
-#############################
+## needed to work with addresses
+require 'ipaddr'
+
+###############################
 ## 20140411
 ## Alvaro Miranda
 ## http://kikitux.net
 ## alvaro at kikitux.net
-#############################
+##
+## 20150629
+## forked and modified by
+## Ludovico Caldara
+## http://www.ludovicocaldara.net/dba
+## 
+## New features:
+## - added custom prefix for cluster and hostnames
+## - added custom private and public lans
+## - added dynamic shared disk number AND setup
+## - added dynamic DNS configuration
+## - done some cleansing
+## Limitations:
+## - DNS is limited to the first and second HUB nodes
+## - subnets netmask must be 255.255.255.0 (lan/24)
+## - last IP number is fixed
+## - GNS ip is configured but not dynamic (not yet)
+###############################
 ##### BEGIN CUSTOMIZATION #####
-#############################
-#define number of nodes
-num_APPLICATION 	= 0
-num_LEAF_INSTANCES	= 0
-num_DB_INSTANCES	= 2
+###############################
+#####
+# vagrant_box_url:
+# 			where the vagrant boy has been downloaded locally. format: file://...
+vagrant_box_url = "file://D:/VM/vagrant_playground/oracle6-racattack.15.01.25.box"
+#####  
+# cl_prefix: gives the prefix of each node.
+#            e.g. ludo gives ludoh01 ludoh02 for HUB nodes,
+#                 ludol01 ludol02 for LEAF nodes, ludoa01 ludoa02 for APP nodes
+#            it will be used also as VirtualBox group name.
+cl_prefix  = ludo
+cl_domain  = racattack
 #
-#define number of cores for guest
-num_CORE=1
+#####
+# public and private LANs. host IPs start at 51, VIPs start at 61, LEAVES start at 81, APPs start at 101
+public_lan	= IPAddr.new("192.168.88.0/24")
+private_lan	= IPAddr.new("172.18.100.0/24")
+#####
+# num_APP, num_LEAF, num_HUB: define number of nodes for each node type (flex clusters)
+#     APP means a node NOT belonging to the cluster (e.g. for EM or OID)
+num_APP 	= 0
+num_LEAF	= 0
+num_HUB 	= 3
+#####
+# vcpu_APP, vcpu_LEAF, vcpu_HUB: define number of cores for guest per guest type
+vcpu_APP	= 1
+vcpu_LEAF	= 1
+vcpu_HUB	= 1
+#####
+# memory_APP, memory_LEAF, memory_HUB: define memory for each type of node, in MBytes
+#    for leaf nodes, the minimun can be  2300, otherwise pre-check will fail for
+#       automatic ulimit values calculated based on ram
+#    for database nodes, the minimum suggested is 3072
 #
-#define memory for each type of node in MBytes
-#
-#for leaf nodes, the minimun can be  2300, otherwise pre-check will fail for
-#automatic ulimit values calculated based on ram
-#
-#for database nodes, the minimum suggested is 3072
-#
-memory_APPLICATION 	= 1500
-memory_LEAF_INSTANCES	= 2300
-memory_DB_INSTANCES	= 3072
-#        
-#size of shared disk in GB
-size_file_to_dbdisk	= 5
-#
+memory_APP 	= 1500
+memory_LEAF	= 2300
+memory_HUB	= 3072
+#####
+# shared_disk_size, shared_disk_number: respectively size and number of shared disks, in MB
+#     valid ONLY FOR HUB nodes
+shared_disk_size	= 5072
+shared_disk_number	= 8
+##### 
+# oracle_sw_path : path where the Oracle 12.1.0.2 software (grid and database) resides,
+#  already downloaded and unzipped  (it expects grid and database directories)
+oracle_sw_path	= E:/Software/Oracle/Linux_x86_64/12cR1/12.1.0.2
 #############################
 ##### END CUSTOMIZATION #####
 #############################
 
 nodes=""
 (1..num_APPLICATION).each do |i|
- nodes="collaba#{i} #{nodes}"
+ nodes="racvaga#{i} #{nodes}"
 end
 (1..num_LEAF_INSTANCES).each do |i|
- nodes="collabl#{i} #{nodes}"
+ nodes="racvagl#{i} #{nodes}"
 end
 (1..num_DB_INSTANCES).each do |i|
- nodes="collabn#{i} #{nodes}"
+ nodes="racvagn#{i} #{nodes}"
 end
 
 $etc_hosts_script = <<SCRIPT
@@ -54,8 +97,8 @@ $etc_hosts_script = <<SCRIPT
 grep PEERDNS /etc/sysconfig/network-scripts/ifcfg-eth0 || echo 'PEERDNS=no' >> /etc/sysconfig/network-scripts/ifcfg-eth0
 echo "overwriting /etc/resolv.conf"
 cat > /etc/resolv.conf <<EOF
-nameserver 192.168.78.51
-nameserver 192.168.78.52
+nameserver #{public_lan.|(51).to_s}
+nameserver #{public_lan.|(51).to_s}
 search racattack
 EOF
 
@@ -63,7 +106,6 @@ cat > /etc/hosts << EOF
 127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
 ::1         localhost6 localhost6.localdomain6
 EOF
-
 
 SCRIPT
 
@@ -77,8 +119,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # please see the online documentation at vagrantup.com.
 
   # Every Vagrant virtual environment requires a box to build off of.
-  config.vm.box = "racattack/oracle65"
-
+  #config.vm.box = "racattack/oracle65"
+  vagrant_box_url = "file://D:/VM/vagrant_playground/oracle6-racattack.15.01.25.box"
   ## Virtualbox modifications
   ## we first setup memory and cpu
   ## we create shared disks if they don't exists
@@ -87,6 +129,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   ## we can attach 2 shared disk for db to the db nodes only
   ## and 2 other shared disks for the app
 
+  # stagefiles is a directory local to the Vagrantfile where there are a few script to execute on guests
   if File.directory?("stagefiles")
     # our shared folder for scripts
     config.vm.synced_folder "stagefiles", "/media/stagefiles", :mount_options => ["dmode=555","fmode=444"]
@@ -97,9 +140,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     config.vm.provision :shell, :inline => "sh /media/stagefiles/preinstall_crs_db.sh rac"
   end
 
-  if File.directory?("12cR1")
+  if File.directory?(oracle_sw_path)
     # our shared folder for oracle 12c installation files
-    config.vm.synced_folder "12cR1", "/media/sf_12cR1", :mount_options => ["dmode=775","fmode=775","uid=54320","gid=54321"]
+    config.vm.synced_folder oracle_sw_path, "/media/sf_12cR1", :mount_options => ["dmode=775","fmode=775","uid=54320","gid=54321"]
   end
 
 
@@ -107,71 +150,71 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   ## vagrant work up to down, high node goes first
   ## so when node 1 is ready, we can configure rac and all nodes will be up
 
-  (1..num_APPLICATION).each do |i|
+  (1..num_APP).each do |i|
     # this is to start machines higher to lower
-    i = num_APPLICATION+1-i
-    config.vm.define vm_name = "collaba%01d" % i do |config|
+    i = num_APP+1-i
+    config.vm.define vm_name = "#{cl_prefix}a%02d" % i do |config|
       puts " "
-      config.vm.hostname = "#{vm_name}.racattack"
-      lanip = "192.168.78.#{i+90}"
+      config.vm.hostname = "#{vm_name}.#{cl_domain}"
+      lanip = public_lan.|(i+100).to_s
       puts vm_name + " eth1 lanip  :" + lanip
       config.vm.provider :virtualbox do |vb|
         vb.name = vm_name + "." + Time.now.strftime("%y%m%d%H%M")
-        vb.customize ["modifyvm", :id, "--memory", memory_APPLICATION]
-        vb.customize ["modifyvm", :id, "--cpus", num_CORE]
-        vb.customize ["modifyvm", :id, "--groups", "/collab"]
+        vb.customize ["modifyvm", :id, "--memory", memory_APP]
+        vb.customize ["modifyvm", :id, "--cpus", vcpu_APP]
+        vb.customize ["modifyvm", :id, "--groups", "/#{cl_prefix}"]
       end
       config.vm.network :private_network, ip: lanip
     end
   end
 
-  (1..num_LEAF_INSTANCES).each do |i|
+  (1..num_LEAF).each do |i|
     # this is to start machines higher to lower
-    i = num_LEAF_INSTANCES+1-i
-    config.vm.define vm_name = "collabl%01d" % i do |config|
+    i = num_LEAF+1-i
+    config.vm.define vm_name = "#{cl_prefix}l%02d" % i do |config|
       puts " "
-      config.vm.hostname = "#{vm_name}.racattack"
-      lanip = "192.168.78.#{i+70}"
+      config.vm.hostname = "#{vm_name}.#{cl_domain}"
+      lanip = public_lan.|(i+80).to_s
       puts vm_name + " eth1 lanip  :" + lanip
-      privip = "172.16.100.#{i+70}"
+      privip = private_lan.|(i+80).to_s
       puts vm_name + " eth2 privip :" + privip
       config.vm.provider :virtualbox do |vb|
         vb.name = vm_name + "." + Time.now.strftime("%y%m%d%H%M")
-        vb.customize ["modifyvm", :id, "--memory", memory_LEAF_INSTANCES]
-        vb.customize ["modifyvm", :id, "--cpus", num_CORE]
-        vb.customize ["modifyvm", :id, "--groups", "/collab"]
+        vb.customize ["modifyvm", :id, "--memory", memory_LEAF]
+        vb.customize ["modifyvm", :id, "--cpus", vcpu_LEAF]
+        vb.customize ["modifyvm", :id, "--groups", "/#{cl_prefix}"]
       end
       config.vm.network :private_network, ip: lanip
       config.vm.network :private_network, ip: privip
     end
   end
 
-  (1..num_DB_INSTANCES).each do |i|
+  (1..num_HUB).each do |i|
     # this is to start machines higher to lower
-    i = num_DB_INSTANCES+1-i
-    config.vm.define vm_name = "collabn%01d" % i do |config|
+    i = num_HUB+1-i
+    config.vm.define vm_name = "#{cl_prefix}h%02d" % i do |config|
       puts " "
-      config.vm.hostname = "#{vm_name}.racattack"
-      lanip = "192.168.78.#{i+50}"
+      config.vm.hostname = "#{vm_name}.#{cl_domain}"
+      lanip = public_lan.|(i+50).to_s
       puts vm_name + " eth1 lanip  :" + lanip
-      privip = "172.16.100.#{i+50}"
+      privip = private_lan.|(i+50).to_s
       puts vm_name + " eth2 privip :" + privip
       config.vm.provider :virtualbox do |vb|
         vb.name = vm_name + "." + Time.now.strftime("%y%m%d%H%M")
-        vb.customize ["modifyvm", :id, "--memory", memory_DB_INSTANCES]
-        vb.customize ["modifyvm", :id, "--cpus", num_CORE]
-        vb.customize ["modifyvm", :id, "--groups", "/collab"]
+        vb.customize ["modifyvm", :id, "--memory", memory_HUB]
+        vb.customize ["modifyvm", :id, "--cpus", vcpu_HUB]
+        vb.customize ["modifyvm", :id, "--groups", "/#{cl_prefix}"]
         #first shared disk port
         port=2
         #how many shared disk
-        ["1","2","3","4"].each do |disk|
-          file_to_dbdisk = "racattack-shared-disk#{disk}.vdi"
-          if !File.exist?(file_to_dbdisk) and num_DB_INSTANCES==i
+        [1..shared_disk_number].each do |disk|
+          file_to_dbdisk = "#{cl_prefix}-shared-disk%02d.vdi" % disk
+          if !File.exist?(file_to_dbdisk) and num_HUB==i
             unless give_info==false
               puts "on first boot shared disks will be created, this will take some time"
               give_info=false
             end
-            vb.customize ['createhd', '--filename', file_to_dbdisk, '--size', (size_file_to_dbdisk * 1024).floor, '--variant', 'fixed']
+            vb.customize ['createhd', '--filename', file_to_dbdisk, '--size', (shared_disk_size).floor, '--variant', 'fixed']
             vb.customize ['modifyhd', file_to_dbdisk, '--type', 'shareable']
           end
           vb.customize ['storageattach', :id, '--storagectl', 'SATA Controller', '--port', port, '--device', 0, '--type', 'hdd', '--medium', file_to_dbdisk]
@@ -180,23 +223,27 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       end
       config.vm.network :private_network, ip: lanip
       config.vm.network :private_network, ip: privip
-      config.vm.provision :shell, :inline => "sh /media/stagefiles/asm.sh"
-      if vm_name == "collabn1" 
-        puts vm_name + " dns server role is master"
-        config.vm.provision :shell, :inline => "sh /media/stagefiles/named_master.sh"
-        if ENV['setup'] and File.file?("12cR1/linuxamd64_12c_grid_1of2.zip")
-          config.vm.provision :shell, :inline => "sh /media/sf_12cR1/cvuqdisk_install.sh"
-	  config.vm.provision :shell, :inline => "unzip -o /media/sf_12cR1/linuxamd64_12c_grid_1of2.zip -d /u01/stage grid/sshsetup/sshUserSetup.sh"
-          setupssh="sh /media/sf_12cR1/sshUserSetup.sh #{nodes}"
+      config.vm.provision :shell, :inline => "sh /media/stagefiles/asm.sh $shared_disk_number"
+	  
+      if ENV['setup'] and File.file?("#{oracle_sw_path}/grid/rpm/cvuqdisk-1.0.9-1.rpm")
+        config.vm.provision :shell, :inline => "sh /media/stagefiles/cvuqdisk_install.sh"
+      end	  
+	  
+	  if ENV['setup'] and File.file?("#{oracle_sw_path}/grid/sshsetup/sshUserSetup.sh")
+	      setupssh="sh /media/stagefiles/sshUserSetup.sh #{nodes}"
           config.vm.provision :shell, :inline => setupssh
-        end
       end
-      if vm_name == "collabn2" 
+	  
+	  # DNS configuration
+	  if vm_name == "#{cl_prefix}h01" 
+        puts vm_name + " dns server role is master"
+        config.vm.provision :shell, :inline => "sh /media/stagefiles/named_master.sh #{cl_prefix} #{cl_domain} #{public_lan.|(0).to_s} #{private_lan.|(0).to_s} #{num_HUB} 51 61 #{num_LEAF} 81 #{num_APP} 101 3 251
+		
+		"
+      end
+      if vm_name == "#{cl_prefix}h02" 
         puts vm_name + " dns server role is slave"
-        config.vm.provision :shell, :inline => "sh /media/stagefiles/named_slave.sh"
-        if ENV['setup'] and File.file?("12cR1/linuxamd64_12c_grid_1of2.zip")
-          config.vm.provision :shell, :inline => "sh /media/sf_12cR1/cvuqdisk_install.sh"
-        end
+        config.vm.provision :shell, :inline => "sh /media/stagefiles/named_slave.sh  #{cl_prefix} #{cl_domain} #{public_lan.|(0).to_s} #{private_lan.|(0).to_s} #{num_HUB} 51 61 #{num_LEAF} 81 #{num_APP} 101 3 251"
       end
     end
   end
