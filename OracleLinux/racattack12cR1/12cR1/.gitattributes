@@ -1,4 +1,0 @@
-# these files needs to have unix line-endings even on windows
-* eol=lf
-.gitattributes -eol
-readme.txt -eol
