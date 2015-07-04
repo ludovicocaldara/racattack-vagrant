@@ -229,7 +229,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       end
       config.vm.network :private_network, ip: lanip
       config.vm.network :private_network, ip: privip
-      config.vm.provision :shell, :inline => "sh /media/stagefiles/asm.sh $shared_disk_number"
+      config.vm.provision :shell, :inline => "sh /media/stagefiles/asm.sh #{shared_disk_number}"
 	  
       if ENV['setup'] and File.file?("#{oracle_sw_path}/grid/rpm/cvuqdisk-1.0.9-1.rpm")
         config.vm.provision :shell, :inline => "sh /media/stagefiles/cvuqdisk_install.sh"

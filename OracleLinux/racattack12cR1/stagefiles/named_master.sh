@@ -33,6 +33,9 @@ EOF
 	exit 1
 fi
 
+echo $#
+echo $@
+
 cl_prefix=$1
 cl_domain=$2
 public_lan=$3
@@ -42,10 +45,14 @@ hub_starting_count=$6
 vip_starting_count=$7
 leaf_count=$8
 leaf_starting_count=$9
-app_count=$10
-app_starting_count=$11
-scan_count=$12
-scan_starting_count=$13
+app_count=${10}
+app_starting_count=${11}
+scan_count=${12}
+scan_starting_count=${13}
+
+if [ $hub_count -lt 2 ] ; then
+	hub_count=2
+fi
 
 # if [ -f /var/named/${cl_domain} ];then
 #  echo "named already configured in $HOSTNAME"
@@ -72,7 +79,7 @@ master_ip="${base_public}${hub_starting_count}"
 
 
 ### CREATING THE NEW named.conf
-cat <<EOF > /etc/named.comf
+cat <<EOF > /etc/named.conf
 options {
        listen-on port 53 { $master_ip; };
        listen-on-v6 port 53 { ::1; };
@@ -125,61 +132,61 @@ EOF
 echo '$ORIGIN .
 $TTL 10800      ; 3 hours' > /var/named/$cl_domain
 
-echo "$cl_domain               IN SOA  ${cl_prefix}h1.$cl_domain. hostmaster.$cl_domain. (
+echo "$cl_domain               IN SOA  ${cl_prefix}h01.$cl_domain. hostmaster.$cl_domain. (
                                 101        ; serial
                                 86400      ; refresh (1 day)
                                 3600       ; retry (1 hour)
                                 604800     ; expire (1 week)
                                 10800      ; minimum (3 hours)
                                 )
-                        NS      ${cl_prefix}h1.$cl_domain.
-                        NS      ${cl_prefix}h2.$cl_domain." >> /var/named/$cl_domain
+                        NS      ${cl_prefix}h01.$cl_domain.
+                        NS      ${cl_prefix}h02.$cl_domain." >> /var/named/$cl_domain
 echo '$ORIGIN '$cl_domain'.' >>  /var/named/$cl_domain
 
 ## adding scan IPs
-echo "${cl_prefix}-scan    A       ${base_public}.${scan_starting_count}" >> /var/named/$cl_domain
+echo "${cl_prefix}-scan    A       ${base_public}${scan_starting_count}" >> /var/named/$cl_domain
 i=1
 while [ $i -lt $scan_count ] ; do
-	echo "    A       ${base_public}.$(($scan_starting_count+$i))}" >> /var/named/$cl_domain
+	echo "    A       ${base_public}$(($scan_starting_count+$i))" >> /var/named/$cl_domain
 	i=$(($i+1))
 done
 
 ## adding public HUB IPs
 i=0
 while [ $i -lt $hub_count ] ; do
-	echo "${cl_prefix}h$(($i+1))     A       ${base_public}.$(($hub_starting_count+$i))}" >> /var/named/$cl_domain
+	echo "${cl_prefix}h`printf "%02d" $(($i+1))`     A       ${base_public}$(($hub_starting_count+$i))" >> /var/named/$cl_domain
 	i=$(($i+1))
 done
 ## adding  HUB PRIV IPs
 i=0
 while [ $i -lt $hub_count ] ; do
-	echo "${cl_prefix}h$(($i+1))-priv     A       ${base_private}.$(($hub_starting_count+$i))}" >> /var/named/$cl_domain
+	echo "${cl_prefix}h`printf "%02d" $(($i+1))`-priv     A       ${base_private}$(($hub_starting_count+$i))" >> /var/named/$cl_domain
 	i=$(($i+1))
 done
 ## adding public HUB VIP IPs
 i=0
 while [ $i -lt $hub_count ] ; do
-	echo "${cl_prefix}h$(($i+1))-vip     A       ${base_public}.$(($vip_starting_count+$i))}" >> /var/named/$cl_domain
+	echo "${cl_prefix}h`printf "%02d" $(($i+1))`-vip     A       ${base_public}$(($vip_starting_count+$i))" >> /var/named/$cl_domain
 	i=$(($i+1))
 done
 
 ## adding public LEAF IPs
 i=0
 while [ $i -lt $leaf_count ] ; do
-	echo "${cl_prefix}l$(($i+1))     A       ${base_public}.$(($leaf_starting_count+$i))}" >> /var/named/$cl_domain
+	echo "${cl_prefix}l`printf "%02d" $(($i+1))`     A       ${base_public}$(($leaf_starting_count+$i))" >> /var/named/$cl_domain
 	i=$(($i+1))
 done
 ## adding  LEAF PRIV IPs
 i=0
 while [ $i -lt $leaf_count ] ; do
-	echo "${cl_prefix}l$(($i+1))-priv     A       ${base_private}.$(($leaf_starting_count+$i))}" >> /var/named/$cl_domain
+	echo "${cl_prefix}l`printf "%02d" $(($i+1))`-priv     A       ${base_private}$(($leaf_starting_count+$i))" >> /var/named/$cl_domain
 	i=$(($i+1))
 done
 
 ## adding public APP IPs
 i=0
 while [ $i -lt $app_count ] ; do
-	echo "${cl_prefix}a$(($i+1))     A       ${base_public}.$(($app_starting_count+$i))}" >> /var/named/$cl_domain
+	echo "${cl_prefix}a`printf "%02d" $(($i+1))`     A       ${base_public}$(($app_starting_count+$i))" >> /var/named/$cl_domain
 	i=$(($i+1))
 done
 
@@ -187,23 +194,23 @@ echo "localhost               A       127.0.0.1" >> /var/named/$cl_domain
 echo '$ORIGIN '${cl_prefix}'.'${cl_domain}'.' >> /var/named/$cl_domain
 
 echo "@                       NS      ${cl_prefix}-gns.${cl_prefix}.${cl_domain}." >> /var/named/$cl_domain
-echo "${cl_prefix}-gns     A       ${base_public}.241" >> /var/named/$cl_domain
+echo "${cl_prefix}-gns     A       ${base_public}244" >> /var/named/$cl_domain
 
 
 
 ##### CREATING THE NEW REVERSE-LOOKUP FILE
 echo '$ORIGIN .
-$TTL 10800      ; 3 hours' >> /var/named/in-addr.arpa
+$TTL 10800      ; 3 hours' > /var/named/in-addr.arpa
 
-echo "in-addr.arpa            IN SOA  ${cl_prefix}h1.${cl_domain}. hostmaster.${cl_domain}. (
+echo "in-addr.arpa            IN SOA  ${cl_prefix}h01.${cl_domain}. hostmaster.${cl_domain}. (
                                 101        ; serial
                                 86400      ; refresh (1 day)
                                 3600       ; retry (1 hour)
                                 604800     ; expire (1 week)
                                 10800      ; minimum (3 hours)
                                 )
-                        NS      ${cl_prefix}h1.${cl_domain}.
-                        NS      ${cl_prefix}h2.${cl_domain}." >> /var/named/in-addr.arpa
+                        NS      ${cl_prefix}h01.${cl_domain}.
+                        NS      ${cl_prefix}h02.${cl_domain}." >> /var/named/in-addr.arpa
 
 base_public_reverse=`echo $public_lan | awk -F. '{printf ("%d.%d.%d.",$3,$2,$1) }'`
 base_private_reverse=`echo $private_lan | awk -F. '{printf ("%d.%d.%d.",$3,$2,$1) }'`
@@ -212,13 +219,13 @@ echo '$ORIGIN '${base_private_reverse}"in-addr.arpa." >> /var/named/in-addr.arpa
 ## adding  HUB PRIV IPs
 i=0
 while [ $i -lt $hub_count ] ; do
-	echo "$(($hub_starting_count+$i))}			PTR		${cl_prefix}h$(($i+1))-priv.${cl_prefix}." >> /var/named/in-addr.arpa
+	echo "$(($hub_starting_count+$i))			PTR		${cl_prefix}h`printf "%02d" $(($i+1))`-priv.${cl_prefix}." >> /var/named/in-addr.arpa
 	i=$(($i+1))
 done
 ## adding LEAF PRIV IPs
 i=0
 while [ $i -lt $leaf_count ] ; do
-	echo "$(($leaf_starting_count+$i))}			PTR		${cl_prefix}l$(($i+1))-priv.${cl_prefix}." >> /var/named/in-addr.arpa
+	echo "$(($leaf_starting_count+$i))			PTR		${cl_prefix}l`printf "%02d" $(($i+1))`-priv.${cl_prefix}." >> /var/named/in-addr.arpa
 	i=$(($i+1))
 done
 echo '$ORIGIN '${base_public_reverse}"in-addr.arpa." >> /var/named/in-addr.arpa
@@ -226,31 +233,31 @@ echo '$ORIGIN '${base_public_reverse}"in-addr.arpa." >> /var/named/in-addr.arpa
 ## adding  SCAN IPs
 i=0
 while [ $i -lt $scan_count ] ; do
-	echo "$(($scan_starting_count+$i))}			PTR		${cl_prefix}-scan.${cl_prefix}." >>/var/named/in-addr.arpa
+	echo "$(($scan_starting_count+$i))			PTR		${cl_prefix}-scan.${cl_prefix}." >>/var/named/in-addr.arpa
 	i=$(($i+1))
 done
 ## adding  HUB PUBLIC IPs
 i=0
 while [ $i -lt $hub_count ] ; do
-	echo "$(($hub_starting_count+$i))}			PTR		${cl_prefix}h$(($i+1)).${cl_prefix}." >> /var/named/in-addr.arpa
+	echo "$(($hub_starting_count+$i))			PTR		${cl_prefix}h`printf "%02d" $(($i+1))`.${cl_prefix}." >> /var/named/in-addr.arpa
 	i=$(($i+1))
 done
 ## adding  HUB PUBLIC VIPs
 i=0
 while [ $i -lt $hub_count ] ; do
-	echo "$(($vip_starting_count+$i))}			PTR		${cl_prefix}h$(($i+1))-vip.${cl_prefix}." >> /var/named/in-addr.arpa
+	echo "$(($vip_starting_count+$i))			PTR		${cl_prefix}h`printf "%02d" $(($i+1))`-vip.${cl_prefix}." >> /var/named/in-addr.arpa
 	i=$(($i+1))
 done
 ## adding  LEAF PUBLIC IPs
 i=0
 while [ $i -lt $leaf_count ] ; do
-	echo "$(($leaf_starting_count+$i))}			PTR		${cl_prefix}l$(($i+1)).${cl_prefix}." >> /var/named/in-addr.arpa
+	echo "$(($leaf_starting_count+$i))			PTR		${cl_prefix}l`printf "%02d" $(($i+1))`.${cl_prefix}." >> /var/named/in-addr.arpa
 	i=$(($i+1))
 done
 ## adding  APP PUBLIC IPs
 i=0
 while [ $i -lt $app_count ] ; do
-	echo "$(($app_starting_count+$i))}			PTR		${cl_prefix}a$(($i+1)).${cl_prefix}." >> /var/named/in-addr.arpa
+	echo "$(($app_starting_count+$i))			PTR		${cl_prefix}a"`printf "%02d" $(($i+1))`".${cl_prefix}." >> /var/named/in-addr.arpa
 	i=$(($i+1))
 done
 
@@ -262,8 +269,8 @@ if [ ! -f /etc/rndc.key ] ; then
   rndc-confgen -a -r /dev/urandom
   chgrp named /etc/rndc.key
   chmod g+r /etc/rndc.key
-  service named restart || true
 fi
+  service named restart || true
 
 # final command must return success or vagrant thinks the script failed
 echo "successfully completed named steps"

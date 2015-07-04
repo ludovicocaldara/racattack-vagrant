@@ -24,12 +24,12 @@ for x in {c..z} ; do
        echo "ok: no partition on /dev/sd$x"
        #parted -s /dev/sd$x mklabel msdos
        parted -s /dev/sd$x mkpart primary 0% 100%
-       /sbin/partprobe /dev/sd${dl}1
+       /sbin/partprobe /dev/sd${x}1 2>/dev/null
      fi
   else
     echo "filesystem metadata found on sd$x, ignoring"
   fi
-  let i=i+1
+  i=$(($i+1))
   if [ $i -gt $shared_disk_number ] ; then
 	break;
   fi
@@ -48,9 +48,9 @@ KERNEL=="sd?1", BUS=="scsi", PROGRAM=="$cmd /dev/\$parent", \
  RESULT=="`$cmd /dev/sd${dl}`", NAME="asm-disk$i", OWNER="oracle", GROUP="dba", MODE="0660"
 EOF
          i=$(($i+1)) 
-		 if [ $i -gt $shared_disk_number ] ; then
-			break;
-		fi
+	if [ $i -gt $shared_disk_number ] ; then
+		break;
+	fi
 done
 cat /etc/udev/rules.d/99-oracle-asmdevices.rules
 
