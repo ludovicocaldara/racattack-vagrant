@@ -12,26 +12,29 @@ if [ $? -ne 0 ]; then
   sh  "$BASEDIR/grid_oracle_user.sh"
 fi
 
+
 ### creating partitions
 i=1
 for x in {c..z} ; do 
   blkid /dev/sd$x\*
   if [ $? -ne 0 ]; then
      if [ -b /dev/sd$x\1 ]; then
-       echo "ignoring $x, partition found on /dev/$x"
+       echo "ignoring sd$x, partition found on /dev/sd$x"
      else
-       echo "ok: no partition on /dev/$x"
-       parted -s /dev/$x mklabel msdos
-       parted -s /dev/$x unit MB mkpart primary 0% 100%
+       echo "ok: no partition on /dev/sd$x"
+       #parted -s /dev/sd$x mklabel msdos
+       parted -s /dev/sd$x mkpart primary 0% 100%
+       /sbin/partprobe /dev/sd${dl}1
      fi
   else
-    echo "filesystem metadata found on $x, ignoring"
+    echo "filesystem metadata found on sd$x, ignoring"
   fi
   let i=i+1
   if [ $i -gt $shared_disk_number ] ; then
 	break;
   fi
 done
+
  
 echo "options=-g" > /etc/scsi_id.config
 
@@ -54,8 +57,7 @@ cat /etc/udev/rules.d/99-oracle-asmdevices.rules
 
 i=1
 for dl in {c..z} ; do 
-	/sbin/partprobe /dev/sd${dl}1
-	/sbin/udevadm test /block/sd${dl}/sd${dl}
+	#/sbin/udevadm test /block/sd${dl}/sd${dl}
          i=$(($i+1)) 
 		 if [ $i -gt $shared_disk_number ] ; then
 			break;

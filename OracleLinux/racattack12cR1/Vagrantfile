@@ -41,8 +41,8 @@ vagrant_box_url = "file://D:/VM/vagrant_playground/oracle6-racattack.15.01.25.bo
 #            e.g. ludo gives ludoh01 ludoh02 for HUB nodes,
 #                 ludol01 ludol02 for LEAF nodes, ludoa01 ludoa02 for APP nodes
 #            it will be used also as VirtualBox group name.
-cl_prefix  = ludo
-cl_domain  = racattack
+cl_prefix  = "ludo"
+cl_domain  = "racattack"
 #
 #####
 # public and private LANs. host IPs start at 51, VIPs start at 61, LEAVES start at 81, APPs start at 101
@@ -53,7 +53,7 @@ private_lan	= IPAddr.new("172.18.100.0/24")
 #     APP means a node NOT belonging to the cluster (e.g. for EM or OID)
 num_APP 	= 0
 num_LEAF	= 0
-num_HUB 	= 3
+num_HUB 	= 1
 #####
 # vcpu_APP, vcpu_LEAF, vcpu_HUB: define number of cores for guest per guest type
 vcpu_APP	= 1
@@ -71,25 +71,25 @@ memory_HUB	= 3072
 #####
 # shared_disk_size, shared_disk_number: respectively size and number of shared disks, in MB
 #     valid ONLY FOR HUB nodes
-shared_disk_size	= 5072
+shared_disk_size	= 4096
 shared_disk_number	= 8
 ##### 
 # oracle_sw_path : path where the Oracle 12.1.0.2 software (grid and database) resides,
 #  already downloaded and unzipped  (it expects grid and database directories)
-oracle_sw_path	= E:/Software/Oracle/Linux_x86_64/12cR1/12.1.0.2
+oracle_sw_path	= "E:/Software/Oracle/Linux_x86_64/12cR1/12.1.0.2"
 #############################
 ##### END CUSTOMIZATION #####
 #############################
 
 nodes=""
-(1..num_APPLICATION).each do |i|
+(1..num_APP).each do |i|
  nodes="racvaga#{i} #{nodes}"
 end
-(1..num_LEAF_INSTANCES).each do |i|
+(1..num_LEAF).each do |i|
  nodes="racvagl#{i} #{nodes}"
 end
-(1..num_DB_INSTANCES).each do |i|
- nodes="racvagn#{i} #{nodes}"
+(1..num_HUB).each do |i|
+ nodes="racvagh#{i} #{nodes}"
 end
 
 $etc_hosts_script = <<SCRIPT
@@ -109,6 +109,7 @@ EOF
 
 SCRIPT
 
+
 #variable used to provide information only once
 give_info ||=true
 
@@ -119,8 +120,10 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # please see the online documentation at vagrantup.com.
 
   # Every Vagrant virtual environment requires a box to build off of.
-  #config.vm.box = "racattack/oracle65"
-  vagrant_box_url = "file://D:/VM/vagrant_playground/oracle6-racattack.15.01.25.box"
+  config.ssh.username = "root"
+  config.ssh.password = "root"
+  config.vm.box = "racattack/oracle65"
+  config.vm.box_url = vagrant_box_url
   ## Virtualbox modifications
   ## we first setup memory and cpu
   ## we create shared disks if they don't exists
@@ -180,6 +183,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       puts vm_name + " eth2 privip :" + privip
       config.vm.provider :virtualbox do |vb|
         vb.name = vm_name + "." + Time.now.strftime("%y%m%d%H%M")
+		vb.gui = true
         vb.customize ["modifyvm", :id, "--memory", memory_LEAF]
         vb.customize ["modifyvm", :id, "--cpus", vcpu_LEAF]
         vb.customize ["modifyvm", :id, "--groups", "/#{cl_prefix}"]
@@ -188,7 +192,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       config.vm.network :private_network, ip: privip
     end
   end
-
+  
   (1..num_HUB).each do |i|
     # this is to start machines higher to lower
     i = num_HUB+1-i
@@ -201,13 +205,15 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       puts vm_name + " eth2 privip :" + privip
       config.vm.provider :virtualbox do |vb|
         vb.name = vm_name + "." + Time.now.strftime("%y%m%d%H%M")
+		vb.gui = true
+		
         vb.customize ["modifyvm", :id, "--memory", memory_HUB]
         vb.customize ["modifyvm", :id, "--cpus", vcpu_HUB]
         vb.customize ["modifyvm", :id, "--groups", "/#{cl_prefix}"]
         #first shared disk port
         port=2
         #how many shared disk
-        [1..shared_disk_number].each do |disk|
+        (1..shared_disk_number).each do |disk|
           file_to_dbdisk = "#{cl_prefix}-shared-disk%02d.vdi" % disk
           if !File.exist?(file_to_dbdisk) and num_HUB==i
             unless give_info==false
@@ -245,6 +251,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         puts vm_name + " dns server role is slave"
         config.vm.provision :shell, :inline => "sh /media/stagefiles/named_slave.sh  #{cl_prefix} #{cl_domain} #{public_lan.|(0).to_s} #{private_lan.|(0).to_s} #{num_HUB} 51 61 #{num_LEAF} 81 #{num_APP} 101 3 251"
       end
+	  
     end
   end
 
