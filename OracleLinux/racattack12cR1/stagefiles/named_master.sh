@@ -219,13 +219,13 @@ echo '$ORIGIN '${base_private_reverse}"in-addr.arpa." >> /var/named/in-addr.arpa
 ## adding  HUB PRIV IPs
 i=0
 while [ $i -lt $hub_count ] ; do
-	echo "$(($hub_starting_count+$i))			PTR		${cl_prefix}h`printf "%02d" $(($i+1))`-priv.${cl_prefix}." >> /var/named/in-addr.arpa
+	echo "$(($hub_starting_count+$i))			PTR		${cl_prefix}h`printf "%02d" $(($i+1))`-priv.${cl_domain}." >> /var/named/in-addr.arpa
 	i=$(($i+1))
 done
 ## adding LEAF PRIV IPs
 i=0
 while [ $i -lt $leaf_count ] ; do
-	echo "$(($leaf_starting_count+$i))			PTR		${cl_prefix}l`printf "%02d" $(($i+1))`-priv.${cl_prefix}." >> /var/named/in-addr.arpa
+	echo "$(($leaf_starting_count+$i))			PTR		${cl_prefix}l`printf "%02d" $(($i+1))`-priv.${cl_domain}." >> /var/named/in-addr.arpa
 	i=$(($i+1))
 done
 echo '$ORIGIN '${base_public_reverse}"in-addr.arpa." >> /var/named/in-addr.arpa
@@ -233,31 +233,31 @@ echo '$ORIGIN '${base_public_reverse}"in-addr.arpa." >> /var/named/in-addr.arpa
 ## adding  SCAN IPs
 i=0
 while [ $i -lt $scan_count ] ; do
-	echo "$(($scan_starting_count+$i))			PTR		${cl_prefix}-scan.${cl_prefix}." >>/var/named/in-addr.arpa
+	echo "$(($scan_starting_count+$i))			PTR		${cl_prefix}-scan.${cl_domain}." >>/var/named/in-addr.arpa
 	i=$(($i+1))
 done
 ## adding  HUB PUBLIC IPs
 i=0
 while [ $i -lt $hub_count ] ; do
-	echo "$(($hub_starting_count+$i))			PTR		${cl_prefix}h`printf "%02d" $(($i+1))`.${cl_prefix}." >> /var/named/in-addr.arpa
+	echo "$(($hub_starting_count+$i))			PTR		${cl_prefix}h`printf "%02d" $(($i+1))`.${cl_domain}." >> /var/named/in-addr.arpa
 	i=$(($i+1))
 done
 ## adding  HUB PUBLIC VIPs
 i=0
 while [ $i -lt $hub_count ] ; do
-	echo "$(($vip_starting_count+$i))			PTR		${cl_prefix}h`printf "%02d" $(($i+1))`-vip.${cl_prefix}." >> /var/named/in-addr.arpa
+	echo "$(($vip_starting_count+$i))			PTR		${cl_prefix}h`printf "%02d" $(($i+1))`-vip.${cl_domain}." >> /var/named/in-addr.arpa
 	i=$(($i+1))
 done
 ## adding  LEAF PUBLIC IPs
 i=0
 while [ $i -lt $leaf_count ] ; do
-	echo "$(($leaf_starting_count+$i))			PTR		${cl_prefix}l`printf "%02d" $(($i+1))`.${cl_prefix}." >> /var/named/in-addr.arpa
+	echo "$(($leaf_starting_count+$i))			PTR		${cl_prefix}l`printf "%02d" $(($i+1))`.${cl_domain}." >> /var/named/in-addr.arpa
 	i=$(($i+1))
 done
 ## adding  APP PUBLIC IPs
 i=0
 while [ $i -lt $app_count ] ; do
-	echo "$(($app_starting_count+$i))			PTR		${cl_prefix}a"`printf "%02d" $(($i+1))`".${cl_prefix}." >> /var/named/in-addr.arpa
+	echo "$(($app_starting_count+$i))			PTR		${cl_prefix}a"`printf "%02d" $(($i+1))`".${cl_domain}." >> /var/named/in-addr.arpa
 	i=$(($i+1))
 done
 

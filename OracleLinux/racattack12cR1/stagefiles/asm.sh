@@ -22,7 +22,7 @@ for x in {c..z} ; do
        echo "ignoring sd$x, partition found on /dev/sd$x"
      else
        echo "ok: no partition on /dev/sd$x"
-       #parted -s /dev/sd$x mklabel msdos
+       parted -s /dev/sd$x mklabel msdos
        parted -s /dev/sd$x mkpart primary 0% 100%
        /sbin/partprobe /dev/sd${x}1 2>/dev/null
      fi
